@@ -337,4 +337,36 @@ ai_results(id, session_id, kind, input_hash, output_jsonb, created_at)
 - MegaLogViewer HD — histogram/table generator on VE axes, 3D scatter, calculated fields: efianalytics.com
 - Innovate LogWorks — .log stores 10-bit raw + calibration: manual (exhaustgas.com/docserver/Docs/163.pdf)
 - Automotive time-series anomaly detection (context for AI/diff): arXiv EngineAD 2603.25955; UniTO dissertation
+
+---
+
+## 13. Build handoff — implementing M0 + M1 on another machine
+
+**M0 and M1 are intended to be built on a separate computer.** The repo is the single source of truth;
+everything needed is committed. Steps to pick up the work:
+
+**Prerequisites**
+- Git, Node.js LTS (≥ 20), and Docker Desktop (for the PostgreSQL container).
+- GitHub access to `enimarix/speedTech` (the repo is **private**).
+
+**Get the code**
+```bash
+git clone https://github.com/enimarix/speedTech.git
+cd speedTech
+git config user.name "enimarix"
+git config user.email "medenimarix@gmail.com"   # keep commit attribution consistent
 ```
+
+**Scope to build there**
+- **M0 — Scaffold:** `docker-compose.yml` (Postgres + Node app), TypeScript project, DB migrations,
+  and the `engine_profiles` registry **seeded with "M50 block + M52 head / MS41"** (§4).
+  Verify with `docker compose up` → Postgres reachable, Node app boots, migrations applied.
+- **M1 — Cars + CSV parsing:** registry-driven create-car flow with full config (§4), the RomRaider CSV
+  reader → canonical model (§3.1, §5) with dead-channel detection, and **tests against the 9 sample logs
+  in `logs/`** (committed as fixtures). Expected parser results are documented per §3.3 (e.g. TPS maxes
+  ~74.5%, boost dead in CSV, knock events present) — use them as assertions.
+
+**Workflow**
+- Branch per milestone (e.g. `feat/m0-scaffold`, `feat/m1-cars-csv`), PR into `main`.
+- Keep `logs/` as test fixtures; do **not** commit real secrets — use `.env` (git-ignored) with `.env.example` checked in.
+- M2's boost decoder is already de-risked (§3.2) — port the verified 10-bit/planar/calibration logic to Node when you reach it.
