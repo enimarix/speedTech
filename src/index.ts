@@ -1,6 +1,7 @@
 import express from "express";
 import { pool } from "./db.js";
 import { migrate } from "./migrate.js";
+import { carsRouter } from "./cars.js";
 
 const PORT = Number(process.env.PORT ?? 3000);
 
@@ -23,6 +24,7 @@ async function main(): Promise<void> {
   await migrate(pool);
 
   const app = express();
+  app.use(express.json());
   // /health doubles as the M0 self-check: proves db reachable + migration seeded the registry.
   app.get("/health", async (_req, res) => {
     const { rows } = await pool.query<{ count: number }>(
@@ -30,6 +32,7 @@ async function main(): Promise<void> {
     );
     res.json({ ok: true, engineProfiles: rows[0].count });
   });
+  app.use(carsRouter(pool));
   app.listen(PORT, () => console.log(`[app] listening on :${PORT}`));
 }
 
