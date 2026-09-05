@@ -19,7 +19,9 @@ export function Heatmap({
   return (
     <div className="heatmap" style={{ "--i": index } as React.CSSProperties}>
       <h4>{title}</h4>
-      <div className="grid" style={{ gridTemplateColumns: `48px repeat(${rpmAxis.length}, 1fr)` }}>
+      <div className="scroll">
+      {/* minmax floor keeps the numbers readable; the wrapper scrolls once they no longer fit */}
+      <div className="grid" style={{ gridTemplateColumns: `40px repeat(${rpmAxis.length}, minmax(30px, 1fr))` }}>
         <div className="corner" />
         {rpmAxis.map((r) => <div key={r} className="axis col">{r}</div>)}
         {rows.map((load, ri) => (
@@ -44,6 +46,7 @@ export function Heatmap({
             })}
           </Fragment>
         ))}
+      </div>
       </div>
     </div>
   );

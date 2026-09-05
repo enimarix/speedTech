@@ -73,7 +73,7 @@ header .sub { color: var(--muted); font-size: 13px; letter-spacing: 0.01em; }
 .link:hover { color: var(--text); background: var(--surface-2); transform: translateX(-2px); }
 
 /* ---------- layout ---------- */
-.cols { display: grid; grid-template-columns: 1fr 340px; gap: 22px; align-items: start; }
+.cols { display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: 22px; align-items: start; }
 
 section {
   background: var(--surface);
@@ -212,13 +212,19 @@ h3 button:hover:not(:disabled) { border-color: var(--accent); box-shadow: none; 
 .finding .msg { color: #d5dbe8; }
 
 /* ---------- heatmaps ---------- */
-.maps { display: grid; grid-template-columns: 1fr 1fr; gap: 26px; }
-.heatmap { animation: rise 480ms var(--ease) both; animation-delay: calc(var(--i, 0) * 90ms); }
-.heatmap .grid {
-  display: grid; gap: 2px;
-  background: var(--line); border: 1px solid var(--line);
-  border-radius: 10px; overflow: hidden; padding: 2px;
+.maps { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 26px; }
+.heatmap { animation: rise 480ms var(--ease) both; animation-delay: calc(var(--i, 0) * 90ms); min-width: 0; }
+/* The grid carries a fixed number of RPM columns, so past a certain width it cannot shrink without
+   squashing the values. Let it keep a legible minimum and scroll *inside* this box — the page body
+   must never scroll sideways, and clipping would silently hide the top RPM columns. */
+.heatmap .scroll {
+  overflow-x: auto; overscroll-behavior-x: contain;
+  border: 1px solid var(--line); border-radius: 10px; background: var(--line);
+  scrollbar-width: thin; scrollbar-color: var(--line-bright) transparent;
 }
+.heatmap .scroll::-webkit-scrollbar { height: 8px; }
+.heatmap .scroll::-webkit-scrollbar-thumb { background: var(--line-bright); border-radius: 99px; }
+.heatmap .grid { display: grid; gap: 2px; padding: 2px; }
 .heatmap .cell {
   min-height: 24px; display: flex; align-items: center; justify-content: center;
   font-size: 10px; font-weight: 600; font-variant-numeric: tabular-nums;
@@ -238,7 +244,7 @@ h3 button:hover:not(:disabled) { border-color: var(--accent); box-shadow: none; 
 
 /* ---------- responsive ---------- */
 @media (max-width: 900px) {
-  .cols, .maps { grid-template-columns: 1fr; }
+  .cols, .maps { grid-template-columns: minmax(0, 1fr); }
   .finding { grid-template-columns: 70px 1fr; row-gap: 4px; }
   .finding .msg { grid-column: 1 / -1; }
 }
