@@ -46,6 +46,23 @@ const load = (f: string) => parseRomraiderCsv(join(LOGS, f));
   console.log(`ok pull: segments ${JSON.stringify(a.segments)}, findings ${a.findings.length}`);
 }
 
+// --- fuel-cut rows must never reach the AFR map (SPEC risk #4) ---
+// The wideband rails at ~20.3 whenever fuelling stops (overrun, gear-shift cut, coasting). Those
+// rows are not a mixture the tune controls; if they leak in they read as +5.6..+8.5 lean.
+{
+  for (const f of ["romraiderlog_DRIVE2_20260903_230436.csv", "romraiderlog_33_20260903_224331.csv",
+                   "romraiderlog_2GEARPULL3_20260903_231323.csv"]) {
+    const a = analyzeSession(await load(f), config(true)); // turbo target 11.8 = worst case
+    const worst = Math.max(0, ...a.maps.afr_error.map((c) => c.max));
+    assert.ok(worst < 4, `${f}: AFR-error max +${worst.toFixed(1)} implies pegged fuel-cut rows leaked in`);
+  }
+  // A pull whose rows are all fuel-cut must not report a WOT-lean verdict from railed values.
+  const a = analyzeSession(await load("romraiderlog_2GEARPULL3_20260903_231323.csv"), config(true));
+  const bogus = a.findings.filter((f) => f.code === "afr.wot_lean" && (f.evidence.min as number) >= 17);
+  assert.equal(bogus.length, 0, "fuel-cut AFR used as a pull's min AFR");
+  console.log("ok fuel-cut: pegged-lean rows excluded from AFR map and pull verdicts");
+}
+
 // --- drive file: decel/coast segment present ---
 {
   const csv = await load("romraiderlog_DRIVE_20260903_230053.csv");

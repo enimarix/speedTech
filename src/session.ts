@@ -2,7 +2,7 @@
 // into one analyzed session. Pure — no DB/HTTP — so it's unit-tested against the sample logs.
 import { parseRomraiderText, type ParsedLog } from "./parseCsv.js";
 import { parseLw2Buffer, type Lw2Log } from "./parseLw2.js";
-import { alignToCsv } from "./align.js";
+import { alignToCsv, applyWindow, type Window } from "./align.js";
 import { analyzeSession, type SessionAnalysis } from "./analyze.js";
 import type { CarConfig } from "./grid.js";
 
@@ -15,13 +15,10 @@ export interface LogSummary {
 export interface BuiltSession {
   logs: LogSummary[];
   analysis: SessionAnalysis;
-  boost_alignment: { confidence: number; lag: number } | null;
+  boost_alignment: { confidence: number; window: Window } | null;
 }
 
 const isLw2 = (buf: Buffer) => buf.subarray(0, 5).toString("latin1") === "LW2.0";
-
-// Shift a CSV-length series by `lag` samples (from AFR cross-correlation); out-of-range → NaN (skipped).
-const applyLag = (x: number[], lag: number): number[] => x.map((_, i) => x[i - lag] ?? NaN);
 
 export function buildSession(files: UploadFile[], cfg: CarConfig, forcedInduction: boolean): BuiltSession {
   const csvs: ParsedLog[] = [];
@@ -40,16 +37,17 @@ export function buildSession(files: UploadFile[], cfg: CarConfig, forcedInductio
   let boost: number[] | undefined;
   let boost_alignment: BuiltSession["boost_alignment"] = null;
   if (forcedInduction && lw2s.length && csv.channels.afr) {
-    let best: { lw: Lw2Log; confidence: number; lag: number } | null = null;
+    // AFR is the channel both files share, so it picks the log and the time window; boost is then
+    // read from that same window (never re-searched, or the two channels would desynchronise).
+    let best: { lw: Lw2Log; window: Window } | null = null;
     for (const lw of lw2s) {
       if (!lw.channels.afr) continue;
-      const a = alignToCsv(lw.channels.afr, csv.channels.afr);
-      if (!best || a.confidence > best.confidence) best = { lw, confidence: a.confidence, lag: a.lag };
+      const { window } = alignToCsv(lw.channels.afr, csv.channels.afr);
+      if (!best || window.confidence > best.window.confidence) best = { lw, window };
     }
     if (best?.lw.channels.boost) {
-      const { resampled } = alignToCsv(best.lw.channels.boost, csv.channels.afr);
-      boost = applyLag(resampled, best.lag);
-      boost_alignment = { confidence: best.confidence, lag: best.lag };
+      boost = applyWindow(best.lw.channels.boost, best.window, csv.channels.afr.length);
+      boost_alignment = { confidence: best.window.confidence, window: best.window };
     }
   }
 

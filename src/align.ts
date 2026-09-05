@@ -54,10 +54,40 @@ export function bestLag(a: number[], b: number[], maxLagFrac = 0.5): Alignment {
   return best;
 }
 
-// Align a log channel to a CSV channel of the same physical quantity (e.g. AFR<->AFR).
-// Returns the alignment and the log series resampled onto the CSV sample grid.
-export function alignToCsv(logSeries: number[], csvSeries: number[]): Alignment & { resampled: number[] } {
-  const resampled = resample(logSeries, csvSeries.length);
-  const a = bestLag(resampled, csvSeries);
-  return { ...a, resampled };
+export interface Window { start: number; length: number; confidence: number }
+
+// Find WHICH slice of the log covers the CSV. The two files are independent recordings: the Innovate
+// log runs at its own rate and usually spans a different (longer) period than the ECU CSV, so
+// stretching the whole log onto the CSV grid warps the time base — boost then lands in the wrong
+// RPM×Load cells (measured r(load,boost) = -0.32, i.e. backwards, vs +0.85 once windowed).
+// So search over window length (= relative sample rate) AND start offset, scoring each candidate by
+// correlation on the shared channel. This subsumes lag: the offset IS the lag.
+// ponytail: brute-force scan, ~1.5k candidates on the sample logs — instant at this size. Parse the
+// per-block timestamps from the LW2 directory if logs ever get big enough for this to drag.
+export function findWindow(logSeries: number[], csvSeries: number[]): Window {
+  const n = logSeries.length;
+  let best: Window = { start: 0, length: n, confidence: -Infinity };
+  const minLen = Math.max(20, Math.floor(n * 0.05));
+  const lenStep = Math.max(1, Math.round(n / 40));
+  for (let length = minLen; length <= n; length += lenStep) {
+    const startStep = Math.max(1, Math.round(length / 20));
+    for (let start = 0; start + length <= n; start += startStep) {
+      const c = pearson(resample(logSeries.slice(start, start + length), csvSeries.length), csvSeries);
+      if (c > best.confidence) best = { start, length, confidence: c };
+    }
+  }
+  return best;
+}
+
+// Align a log channel to a CSV channel of the same physical quantity (e.g. AFR<->AFR) by finding the
+// log window that best matches, then resampling that window onto the CSV grid.
+export function alignToCsv(logSeries: number[], csvSeries: number[]): Alignment & { resampled: number[]; window: Window } {
+  const window = findWindow(logSeries, csvSeries);
+  const resampled = resample(logSeries.slice(window.start, window.start + window.length), csvSeries.length);
+  return { lag: 0, confidence: window.confidence, resampled, window };
+}
+
+// Apply an already-found window to another channel of the same log (e.g. boost, once AFR picked it).
+export function applyWindow(series: number[], w: Window, outLen: number): number[] {
+  return resample(series.slice(w.start, w.start + w.length), outLen);
 }
