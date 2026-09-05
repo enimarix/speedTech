@@ -1,0 +1,36 @@
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: speedtech
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d speedtech"]
+      interval: 3s
+      timeout: 3s
+      retries: 10
+
+  app:
+    build: .
+    environment:
+      DATABASE_URL: postgres://postgres:postgres@db:5432/speedtech
+      PORT: "3000"
+    ports:
+      - "3000:3000"
+    depends_on:
+      db:
+        condition: service_healthy
+    # Bind-mount code only (not node_modules) so edits reload without a rebuild.
+    # ponytail: if tsx watch misses changes on Windows/Docker, add CHOKIDAR_USEPOLLING=true here.
+    volumes:
+      - ./src:/app/src
+      - ./migrations:/app/migrations
+    command: npm run dev
+
+volumes:
+  pgdata:
