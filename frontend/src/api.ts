@@ -17,6 +17,8 @@ export interface Analysis {
   quality: { dead_channels: string[]; sample_rate_hz: number; issues: string[] };
 }
 export interface SessionSummary { id: string; uploaded_at: string; label: string | null; headline: string | null; }
+export interface DiffFinding { type: "regression" | "improvement" | "neutral"; severity: string; cell?: string; metric: string; delta: number; significance: number; message: string; }
+export interface DiffResult { baseline: string | null; message?: string; scalar_deltas?: Record<string, number | null>; findings: DiffFinding[]; compared_cells?: number; insufficient?: number; }
 
 export const getProfiles = () => fetch("/engine-profiles").then(j<EngineProfile[]>);
 export const getCars = () => fetch("/cars").then(j<Car[]>);
@@ -24,6 +26,7 @@ export const createCar = (body: unknown) =>
   fetch("/cars", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(j<Car>);
 export const getSessions = (carId: string) => fetch(`/cars/${carId}/sessions`).then(j<SessionSummary[]>);
 export const getSession = (id: string) => fetch(`/sessions/${id}`).then(j<{ id: string; label: string | null; derived: Analysis; logs: any[] }>);
+export const compareSession = (id: string, baseline = "prev") => fetch(`/sessions/${id}/compare?baseline=${baseline}`).then(j<DiffResult>);
 export function uploadSession(carId: string, files: File[], label: string) {
   const fd = new FormData();
   for (const f of files) fd.append("files", f);
