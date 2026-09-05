@@ -4,7 +4,7 @@ import type { CellStat } from "./api";
 // Grid heatmap on the car's own RPM×Load axes (§4/§9) — the same trick MLV uses. Cols = RPM,
 // rows = Load (high load on top). Colour comes from the per-map colour function.
 export function Heatmap({
-  title, cells, rpmAxis, loadAxis, color, fmt = (v) => v.toFixed(1),
+  title, cells, rpmAxis, loadAxis, color, fmt = (v) => v.toFixed(1), index = 0,
 }: {
   title: string;
   cells: CellStat[];
@@ -12,25 +12,30 @@ export function Heatmap({
   loadAxis: number[];
   color: (v: number) => string;
   fmt?: (v: number) => string;
+  index?: number;
 }) {
   const by = new Map(cells.map((c) => [`${c.rpm_bin}|${c.load_bin}`, c]));
   const rows = [...loadAxis].reverse();
   return (
-    <div className="heatmap">
+    <div className="heatmap" style={{ "--i": index } as React.CSSProperties}>
       <h4>{title}</h4>
       <div className="grid" style={{ gridTemplateColumns: `48px repeat(${rpmAxis.length}, 1fr)` }}>
         <div className="corner" />
         {rpmAxis.map((r) => <div key={r} className="axis col">{r}</div>)}
-        {rows.map((load) => (
+        {rows.map((load, ri) => (
           <Fragment key={load}>
             <div className="axis row">{load}</div>
-            {rpmAxis.map((rpm) => {
+            {rpmAxis.map((rpm, ci) => {
               const c = by.get(`${rpm}|${load}`);
               return (
                 <div
                   key={`${rpm}-${load}`}
                   className="cell"
-                  style={{ background: c ? color(c.mean) : "transparent" }}
+                  // diagonal wipe: delay grows with row+col so the grid fills from one corner
+                  style={{
+                    background: c ? color(c.mean) : "transparent",
+                    animationDelay: `${index * 90 + (ci + ri) * 14}ms`,
+                  }}
                   title={c ? `${rpm} rpm / ${load} load\n${fmt(c.mean)} (n=${c.n})` : `${rpm} rpm / ${load} load\nno data`}
                 >
                   {c ? fmt(c.mean) : ""}

@@ -50,8 +50,8 @@ function CarsView({ profiles, cars, onCreate, onOpen, setErr }: {
         <h2>Cars</h2>
         {cars.length === 0 && <p className="muted">No cars yet — create one →</p>}
         <ul className="list">
-          {cars.map((c) => (
-            <li key={c.id} onClick={() => onOpen(c)}>
+          {cars.map((c, i) => (
+            <li key={c.id} style={{ "--i": i } as React.CSSProperties} onClick={() => onOpen(c)}>
               <strong>{c.name}</strong>
               <span className="muted">{c.engine_label} · {c.ecu} · {c.forced_induction_json.enabled ? c.forced_induction_json.type : "NA"}</span>
             </li>
@@ -100,8 +100,8 @@ function CarView({ car, onOpenSession, setErr }: {
         <h2>{car.name} <span className="muted">{car.engine_label}</span></h2>
         {sessions.length === 0 && <p className="muted">No sessions — upload a batch →</p>}
         <ul className="list">
-          {sessions.map((s) => (
-            <li key={s.id} onClick={() => open(s.id)}>
+          {sessions.map((s, i) => (
+            <li key={s.id} style={{ "--i": i } as React.CSSProperties} onClick={() => open(s.id)}>
               <strong>{s.label ?? "session"}</strong>
               <span className="muted">{new Date(s.uploaded_at).toLocaleString()}</span>
               {s.headline && <span className="headline">{s.headline}</span>}
@@ -114,7 +114,7 @@ function CarView({ car, onOpenSession, setErr }: {
         <p className="muted">RomRaider CSV{car.forced_induction_json.enabled ? " + Innovate .log.txt for boost" : ""}.</p>
         <input type="file" multiple onChange={(e) => setFiles([...(e.target.files ?? [])])} />
         <label>Label<input value={label} onChange={(e) => setLabel(e.target.value)} placeholder="3rd gear pull" /></label>
-        <button disabled={busy || files.length === 0} onClick={upload}>{busy ? "Analyzing…" : "Upload & analyze"}</button>
+        <button data-busy={busy || undefined} disabled={busy || files.length === 0} onClick={upload}>{busy ? "Analyzing…" : "Upload & analyze"}</button>
       </section>
     </div>
   );
@@ -139,28 +139,28 @@ function SessionView({ car, sessionId, label, a, setErr }: { car: Car; sessionId
       <h2>{label ?? "Session"} <span className="muted">{car.name}</span></h2>
 
       <div className="segments">
-        {Object.entries(a.segments).map(([k, v]) => <span key={k} className={`seg ${k}`}>{k}: {v}</span>)}
+        {Object.entries(a.segments).map(([k, v], i) => <span key={k} style={{ "--i": i } as React.CSSProperties} className={`seg ${k}`}>{k}: {v}</span>)}
       </div>
 
       <h3>Findings</h3>
       <ul className="findings">
-        {a.findings.map((f, i) => <FindingRow key={i} f={f} />)}
+        {a.findings.map((f, i) => <FindingRow key={i} f={f} i={i} />)}
         {a.findings.length === 0 && <li className="muted">No findings.</li>}
       </ul>
 
       {a.recommendations.length > 0 && <>
         <h3>Recommendations</h3>
-        <ul className="findings">{a.recommendations.map((f, i) => <FindingRow key={i} f={f} />)}</ul>
+        <ul className="findings">{a.recommendations.map((f, i) => <FindingRow key={i} f={f} i={i} />)}</ul>
       </>}
 
-      <h3>Compare vs history <button onClick={compare} disabled={comparing}>{comparing ? "…" : "vs previous session"}</button></h3>
+      <h3>Compare vs history <button data-busy={comparing || undefined} onClick={compare} disabled={comparing}>{comparing ? "comparing…" : "vs previous session"}</button></h3>
       {diff && (diff.baseline === null
         ? <p className="muted">{diff.message}</p>
         : <>
             <p className="muted">baseline: {diff.baseline} · {diff.compared_cells} cells compared · {diff.insufficient} insufficient</p>
             <ul className="findings">
               {diff.findings.map((f, i) => (
-                <li key={i} className={`finding ${f.type === "regression" ? "critical" : f.type === "improvement" ? "info" : "warn"}`}>
+                <li key={i} style={{ "--i": i } as React.CSSProperties} className={`finding ${f.type === "regression" ? "critical" : f.type === "improvement" ? "info" : "warn"}`}>
                   <span className="sev">{f.type}</span>
                   <span className="code">{f.metric} {f.delta > 0 ? "+" : ""}{f.delta.toFixed(2)}</span>
                   <span className="msg">{f.message}</span>
@@ -172,11 +172,11 @@ function SessionView({ car, sessionId, label, a, setErr }: { car: Car; sessionId
 
       <h3>Maps</h3>
       <div className="maps">
-        <Heatmap title="AFR error (lean = red)" cells={a.maps.afr_error} rpmAxis={rpm} loadAxis={load} color={divergeColor(1.5)} fmt={(v) => (v > 0 ? "+" : "") + v.toFixed(1)} />
-        <Heatmap title="Knock (° pulled)" cells={a.maps.knock} rpmAxis={rpm} loadAxis={load} color={knockColor} />
-        <Heatmap title="Ignition advance (°)" cells={a.maps.ign} rpmAxis={rpm} loadAxis={load} color={seqColor(ignMin, ignMax)} />
+        <Heatmap title="AFR error (lean = red)" cells={a.maps.afr_error} rpmAxis={rpm} loadAxis={load} color={divergeColor(1.5)} fmt={(v) => (v > 0 ? "+" : "") + v.toFixed(1)} index={0} />
+        <Heatmap title="Knock (° pulled)" cells={a.maps.knock} rpmAxis={rpm} loadAxis={load} color={knockColor} index={1} />
+        <Heatmap title="Ignition advance (°)" cells={a.maps.ign} rpmAxis={rpm} loadAxis={load} color={seqColor(ignMin, ignMax)} index={2} />
         {a.maps.boost && a.maps.boost.length > 0 &&
-          <Heatmap title="Boost (psi)" cells={a.maps.boost} rpmAxis={rpm} loadAxis={load} color={seqColor(Math.min(...boostVals), Math.max(...boostVals))} />}
+          <Heatmap title="Boost (psi)" cells={a.maps.boost} rpmAxis={rpm} loadAxis={load} color={seqColor(Math.min(...boostVals), Math.max(...boostVals))} index={3} />}
       </div>
 
       {a.quality.issues.length > 0 && <>
@@ -187,9 +187,9 @@ function SessionView({ car, sessionId, label, a, setErr }: { car: Car; sessionId
   );
 }
 
-function FindingRow({ f }: { f: Finding }) {
+function FindingRow({ f, i = 0 }: { f: Finding; i?: number }) {
   return (
-    <li className={`finding ${f.severity}`}>
+    <li className={`finding ${f.severity}`} style={{ "--i": i } as React.CSSProperties}>
       <span className="sev">{f.severity}</span>
       <span className="code">{f.code}</span>
       <span className="msg">{f.message}</span>
