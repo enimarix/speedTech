@@ -48,9 +48,13 @@ function cstr(buf: Buffer, off: number): string {
 const dec = (raw: number, min: number, max: number): number => min + (raw / 1023) * (max - min);
 
 export async function parseLw2(path: string): Promise<Lw2Log> {
-  const buf = await readFile(path);
+  return parseLw2Buffer(await readFile(path), basename(path));
+}
+
+// Same, from an already-loaded buffer (multipart uploads).
+export function parseLw2Buffer(buf: Buffer, filename: string): Lw2Log {
   if (buf.subarray(0, 5).toString("latin1") !== "LW2.0")
-    throw new Error(`${basename(path)}: not an LW2.0 file`);
+    throw new Error(`${filename}: not an LW2.0 file`);
 
   // Channel defs in file order (== planar slot order).
   const order: Lw2Key[] = [];
@@ -58,7 +62,7 @@ export async function parseLw2(path: string): Promise<Lw2Log> {
   for (let i = 0; i < 4; i++) {
     const b = DEF_BLOCK0 + i * DEF_STRIDE;
     const key = nameToKey(cstr(buf, b));
-    if (!key) throw new Error(`${basename(path)}: unknown channel def #${i} "${cstr(buf, b)}"`);
+    if (!key) throw new Error(`${filename}: unknown channel def #${i} "${cstr(buf, b)}"`);
     order.push(key);
     calibration[key] = { min: buf.readFloatLE(b + CAL_MIN_OFF), max: buf.readFloatLE(b + CAL_MAX_OFF) };
   }
@@ -88,20 +92,20 @@ export async function parseLw2(path: string): Promise<Lw2Log> {
     }
   }
   for (const r of runs) while (r.length && r[r.length - 1] === 0) r.pop();
-  if (runs.length === 0) throw new Error(`${basename(path)}: no sample data`);
-  if (runs.length % 2 !== 0) throw new Error(`${basename(path)}: ${runs.length} runs, expected AFR/BOOST pairs`);
+  if (runs.length === 0) throw new Error(`${filename}: no sample data`);
+  if (runs.length % 2 !== 0) throw new Error(`${filename}: ${runs.length} runs, expected AFR/BOOST pairs`);
 
   // Guard the AFR anchor: first run must decode to a plausible AFR value (SPEC raw 517 -> 14.95).
   const a0 = dec(runs[0][0], calibration.afr.min, calibration.afr.max);
   if (a0 < calibration.afr.min - 0.1 || a0 > calibration.afr.max + 0.1)
-    throw new Error(`${basename(path)}: first run not plausible AFR (got ${a0.toFixed(2)})`);
+    throw new Error(`${filename}: first run not plausible AFR (got ${a0.toFixed(2)})`);
 
   const afrRaw: number[] = [];
   const boostRaw: number[] = [];
   for (let i = 0; i < runs.length; i += 2) {
     const afrRun = runs[i], boostRun = runs[i + 1];
     if (Math.abs(afrRun.length - boostRun.length) > 2)
-      throw new Error(`${basename(path)}: block ${i / 2} AFR/BOOST length mismatch (${afrRun.length} vs ${boostRun.length})`);
+      throw new Error(`${filename}: block ${i / 2} AFR/BOOST length mismatch (${afrRun.length} vs ${boostRun.length})`);
     afrRaw.push(...afrRun);
     boostRaw.push(...boostRun);
   }
@@ -112,7 +116,7 @@ export async function parseLw2(path: string): Promise<Lw2Log> {
   };
 
   return {
-    filename: basename(path),
+    filename,
     source_type: "innovate_lw2",
     sample_count: afrRaw.length,
     channels,

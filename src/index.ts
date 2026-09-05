@@ -2,6 +2,7 @@ import express from "express";
 import { pool } from "./db.js";
 import { migrate } from "./migrate.js";
 import { carsRouter } from "./cars.js";
+import { sessionsRouter } from "./sessions.js";
 
 const PORT = Number(process.env.PORT ?? 3000);
 
@@ -33,6 +34,7 @@ async function main(): Promise<void> {
     res.json({ ok: true, engineProfiles: rows[0].count });
   });
   app.use(carsRouter(pool));
+  app.use(sessionsRouter(pool));
   app.listen(PORT, () => console.log(`[app] listening on :${PORT}`));
 }
 
