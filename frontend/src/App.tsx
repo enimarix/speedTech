@@ -7,7 +7,7 @@ export function App() {
   const [profiles, setProfiles] = useState<EngineProfile[]>([]);
   const [cars, setCars] = useState<Car[]>([]);
   const [car, setCar] = useState<Car | null>(null);
-  const [session, setSession] = useState<{ label: string | null; derived: Analysis } | null>(null);
+  const [session, setSession] = useState<{ id: string; label: string | null; derived: Analysis } | null>(null);
   const [err, setErr] = useState<string | null>(null);
 
   const refreshCars = () => api.getCars().then(setCars).catch((e) => setErr(e.message));
@@ -24,7 +24,7 @@ export function App() {
 
       {!car && <CarsView profiles={profiles} cars={cars} onCreate={refreshCars} onOpen={setCar} setErr={setErr} />}
       {car && !session && <CarView car={car} onOpenSession={(d) => setSession(d)} setErr={setErr} />}
-      {session && car && <SessionView car={car} label={session.label} a={session.derived} />}
+      {session && car && <SessionView car={car} sessionId={session.id} label={session.label} a={session.derived} setErr={setErr} />}
     </div>
   );
 }
@@ -74,7 +74,7 @@ function CarsView({ profiles, cars, onCreate, onOpen, setErr }: {
 }
 
 function CarView({ car, onOpenSession, setErr }: {
-  car: Car; onOpenSession: (d: { label: string | null; derived: Analysis }) => void; setErr: (s: string) => void;
+  car: Car; onOpenSession: (d: { id: string; label: string | null; derived: Analysis }) => void; setErr: (s: string) => void;
 }) {
   const [sessions, setSessions] = useState<SessionSummary[]>([]);
   const [files, setFiles] = useState<File[]>([]);
@@ -90,7 +90,7 @@ function CarView({ car, onOpenSession, setErr }: {
     catch (e) { setErr((e as Error).message); } finally { setBusy(false); }
   };
   const open = async (id: string) => {
-    try { const s = await api.getSession(id); onOpenSession({ label: s.label, derived: s.derived }); }
+    try { const s = await api.getSession(id); onOpenSession({ id: s.id, label: s.label, derived: s.derived }); }
     catch (e) { setErr((e as Error).message); }
   };
 
@@ -120,7 +120,14 @@ function CarView({ car, onOpenSession, setErr }: {
   );
 }
 
-function SessionView({ car, label, a }: { car: Car; label: string | null; a: Analysis }) {
+function SessionView({ car, sessionId, label, a, setErr }: { car: Car; sessionId: string; label: string | null; a: Analysis; setErr: (s: string) => void }) {
+  const [diff, setDiff] = useState<import("./api").DiffResult | null>(null);
+  const [comparing, setComparing] = useState(false);
+  const compare = async () => {
+    setComparing(true);
+    try { setDiff(await api.compareSession(sessionId, "prev")); }
+    catch (e) { setErr((e as Error).message); } finally { setComparing(false); }
+  };
   const rpm = car.config_json.rpm_axis as number[];
   const load = car.config_json.load_axis as number[];
   const ignVals = a.maps.ign.map((c) => c.mean);
@@ -145,6 +152,23 @@ function SessionView({ car, label, a }: { car: Car; label: string | null; a: Ana
         <h3>Recommendations</h3>
         <ul className="findings">{a.recommendations.map((f, i) => <FindingRow key={i} f={f} />)}</ul>
       </>}
+
+      <h3>Compare vs history <button onClick={compare} disabled={comparing}>{comparing ? "…" : "vs previous session"}</button></h3>
+      {diff && (diff.baseline === null
+        ? <p className="muted">{diff.message}</p>
+        : <>
+            <p className="muted">baseline: {diff.baseline} · {diff.compared_cells} cells compared · {diff.insufficient} insufficient</p>
+            <ul className="findings">
+              {diff.findings.map((f, i) => (
+                <li key={i} className={`finding ${f.type === "regression" ? "critical" : f.type === "improvement" ? "info" : "warn"}`}>
+                  <span className="sev">{f.type}</span>
+                  <span className="code">{f.metric} {f.delta > 0 ? "+" : ""}{f.delta.toFixed(2)}</span>
+                  <span className="msg">{f.message}</span>
+                </li>
+              ))}
+              {diff.findings.length === 0 && <li className="muted">No significant changes vs baseline.</li>}
+            </ul>
+          </>)}
 
       <h3>Maps</h3>
       <div className="maps">
