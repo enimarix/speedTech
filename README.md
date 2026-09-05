@@ -19,7 +19,14 @@ Target build: **M50 block + M52 head** on a Siemens MS41 ECU.
 - **AI:** `@anthropic-ai/sdk` (optional; all deterministic analysis works without it)
 
 ## Status
-Specification complete — see [`SPEC.md`](SPEC.md). Implementation starts at milestone **M0** (scaffold).
+M0–M4 implemented (scaffold, cars + CSV parsing, LW2.0 boost decoder, per-session analysis, session persistence + upload API + React UI). See [`SPEC.md`](SPEC.md) for the full spec and milestones.
+
+## Development
+```bash
+docker compose up -d            # Postgres + Node API on :3000 (runs migrations, seeds registry)
+cd frontend && npm install && npm run dev   # React UI on :5173 (proxies API to :3000)
+npm install && npm test         # backend parsers/decoder/analysis tests against the sample logs
+```
 
 ## Repository layout (planned)
 ```
