@@ -64,9 +64,13 @@ const isDead = (xs: number[]): boolean => xs.every((x) => x === 0 || !Number.isF
 
 // Parse a RomRaider CSV (latin-1, ';'-delimited, decimal comma, ~12.5 Hz) into the canonical model.
 export async function parseRomraiderCsv(path: string): Promise<ParsedLog> {
-  const text = await readFile(path, "latin1");
+  return parseRomraiderText(await readFile(path, "latin1"), basename(path));
+}
+
+// Same, from already-loaded latin-1 text (multipart uploads decode the buffer as latin1).
+export function parseRomraiderText(text: string, filename: string): ParsedLog {
   const lines = text.split(/\r?\n/).filter((l) => l.length > 0);
-  if (lines.length < 2) throw new Error(`${basename(path)}: no data rows`);
+  if (lines.length < 2) throw new Error(`${filename}: no data rows`);
 
   const headers = lines[0].split(";");
   const keys = headers.map(headerToKey);
@@ -94,7 +98,7 @@ export async function parseRomraiderCsv(path: string): Promise<ParsedLog> {
   const present_channels = mapped.filter((k) => !dead_channels.includes(k));
 
   return {
-    filename: basename(path),
+    filename,
     source_type: "romraider_csv",
     row_count,
     duration_s,

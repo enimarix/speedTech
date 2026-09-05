@@ -29,7 +29,7 @@ export function quantile(xs: number[], q: number): number {
 }
 
 // EWMA smoothing (α in (0,1]; higher = less smoothing).
-export function ewma(xs: number[], alpha = 0.3): number[] {
+function ewma(xs: number[], alpha = 0.3): number[] {
   const out: number[] = [];
   let prev = xs[0];
   for (const x of xs) { prev = alpha * x + (1 - alpha) * prev; out.push(prev); }
@@ -58,7 +58,7 @@ export interface Segmentation {
 // closed throttle + falling RPM + AFR pegged lean (fuel-cut, excluded from lean flags downstream).
 export function segment(csv: ParsedLog, cfg: CarConfig): Segmentation {
   const ch = (k: ChannelKey) => csv.channels[k] ?? [];
-  const time = ch("time_ms"), rpm = ch("rpm"), tps = ch("tps"), afr = ch("afr"), load = ch("load");
+  const time = ch("time_ms"), rpm = ch("rpm"), tps = ch("tps"), afr = ch("afr");
   const n = rpm.length;
   const tpsMax = Math.max(...tps);
   const closed = Math.max(4, 0.12 * tpsMax);
@@ -84,7 +84,6 @@ export function segment(csv: ParsedLog, cfg: CarConfig): Segmentation {
     else if (rpm[i] < 1100 && isClosed) labels[i] = "idle";
     else labels[i] = "cruise";
   }
-  void load;
   return { labels, rpmPerSec, tpsMax };
 }
 
