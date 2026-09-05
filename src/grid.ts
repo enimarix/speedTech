@@ -47,6 +47,10 @@ export function binIndex(v: number, axis: number[]): number {
 }
 export const cellKey = (ri: number, li: number): string => `r${ri}_l${li}`;
 
+// Above this AFR the wideband is pegged at its gauge rail because fuelling stopped (fuel cut on
+// overrun / gear-shift / coasting), not because the mixture is lean — 20.33 in the samples (§3.3).
+export const AFR_PEGGED_LEAN = 17;
+
 export type Segment = "idle" | "cruise" | "pull" | "decel";
 export interface Segmentation {
   labels: Segment[];
@@ -78,7 +82,7 @@ export function segment(csv: ParsedLog, cfg: CarConfig): Segmentation {
   const labels: Segment[] = new Array(n);
   for (let i = 0; i < n; i++) {
     const isClosed = tps[i] <= closed;
-    const leanPegged = afr.length ? afr[i] >= 17 : false;
+    const leanPegged = afr.length ? afr[i] >= AFR_PEGGED_LEAN : false;
     if (isClosed && rpmPerSec[i] < -150 && leanPegged) labels[i] = "decel";
     else if (hasWot && tps[i] >= wot && rpmPerSec[i] > 100) labels[i] = "pull";
     else if (rpm[i] < 1100 && isClosed) labels[i] = "idle";

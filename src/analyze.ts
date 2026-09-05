@@ -3,7 +3,7 @@
 // thing the AI layer (§8) ever sees. Every value that isn't from a present channel is skipped.
 import type { ParsedLog, ChannelKey } from "./parseCsv.js";
 import {
-  type CarConfig, type Segment, segment, runsOf, binIndex, cellKey, mean, std, quantile,
+  type CarConfig, type Segment, segment, runsOf, binIndex, cellKey, mean, std, quantile, AFR_PEGGED_LEAN,
 } from "./grid.js";
 
 export type Severity = "info" | "warn" | "critical";
@@ -119,7 +119,12 @@ export function analyzeSession(
 
   // --- C. AFR-error map (core tuning output) -----------------------------------------------------
   // Exclude decel fuel-cut and cold/accel enrichment transients (§3.3, §6.C).
-  const afrMask = (i: number) => labels[i] !== "decel" && afr[i] >= 10.5;
+  // AFR_PEGGED_LEAN guards the fuel-cut case at the source: the wideband rails near its gauge max
+  // (20.33 in the samples) whenever fuelling stops — on overrun, gear-shift cuts, and coasting. That
+  // is not a mixture the tune controls, and segmentation alone misses it (a shift cut keeps the
+  // throttle open, so it never looks like decel), so every consumer of the AFR map filters on the
+  // value itself rather than on the label. Without this ~4.5k sample rows read as +5.6..+8.5 lean.
+  const afrMask = (i: number) => labels[i] !== "decel" && afr[i] >= 10.5 && afr[i] < AFR_PEGGED_LEAN;
   const afrTarget = (i: number) => (labels[i] === "pull" ? cfg.afr_target_wot : cfg.afr_target_cruise);
   const afrErr = afr.map((v, i) => v - afrTarget(i));
   const afrErrorMap = cellMap(afrErr, rpm, load, cfg, afrMask);
@@ -131,7 +136,7 @@ export function analyzeSession(
         message: `Lean under load at ${c.rpm_bin} rpm / ${c.load_bin} — +${c.mean.toFixed(2)} AFR lean of target`,
         confidence: Math.min(1, c.n / 20), evidence: { afr_error: c.mean, n: c.n },
       });
-    } else if (c.mean < -cfg.afr_tolerance && labels.some((l) => l !== "pull")) {
+    } else if (c.mean < -cfg.afr_tolerance) {
       findings.push({
         severity: "info", code: "afr.over_rich", cell: c.cell,
         message: `Over-rich at ${c.rpm_bin} rpm / ${c.load_bin} — ${c.mean.toFixed(2)} below target`,
@@ -141,7 +146,8 @@ export function analyzeSession(
   }
   // WOT-pull AFR per pull vs target_wot.
   for (const [a, b] of runsOf(labels, "pull")) {
-    const seg2 = afr.slice(a, b + 1).filter((v) => v >= 10.5);
+    // Same pegged-lean guard: a mid-pull gear-shift fuel cut must not count as the pull's AFR.
+    const seg2 = afr.slice(a, b + 1).filter((v) => v >= 10.5 && v < AFR_PEGGED_LEAN);
     if (seg2.length < 3) continue;
     const mn = Math.min(...seg2), mu = mean(seg2);
     if (mn > cfg.afr_target_wot + cfg.afr_tolerance) {

@@ -41,6 +41,34 @@ const cfg = (fi: boolean): CarConfig => ({
   console.log(`ok csv+log: boost r=${s.boost_alignment!.confidence.toFixed(2)}, boost cells ${s.analysis.maps.boost!.length}`);
 }
 
+// PHYSICS: boost must rise with load. This is the independent check that the log/CSV time windows
+// are actually aligned — stretching the whole log onto the CSV grid scores r ≈ -0.32 (backwards),
+// a correctly-windowed alignment scores r > 0.5. Guards every CSV+log pair in the sample batch.
+{
+  const pearson = (a: number[], b: number[]) => {
+    const n = a.length, ma = a.reduce((s, c) => s + c, 0) / n, mb = b.reduce((s, c) => s + c, 0) / n;
+    let nu = 0, da = 0, db = 0;
+    for (let i = 0; i < n; i++) { const x = a[i] - ma, y = b[i] - mb; nu += x * y; da += x * x; db += y * y; }
+    return Math.sqrt(da * db) ? nu / Math.sqrt(da * db) : 0;
+  };
+  for (const [csvF, logF] of [
+    ["romraiderlog_3GEARPULL_20260903_231139.csv", "PSI 1.log.txt"],
+    ["romraiderlog_2GEARPULL3_20260903_231323.csv", "4 pull.log.txt"],
+    ["romraiderlog_3GEARPULL2_20260903_231159.csv", "second then third.log.txt"],
+  ]) {
+    const s = buildSession([await upload(csvF), await upload(logF)], cfg(true), true);
+    const b = s.analysis.maps.boost!;
+    const r = pearson(b.map((c) => c.load_bin), b.map((c) => c.mean));
+    assert.ok(r > 0.5, `${csvF} + ${logF}: r(load,boost)=${r.toFixed(2)} — boost not tracking load, alignment is off`);
+    const lo = b.filter((c) => c.load_bin <= 80), hi = b.filter((c) => c.load_bin >= 320);
+    if (lo.length && hi.length) {
+      const m = (x: typeof b) => x.reduce((a, c) => a + c.mean, 0) / x.length;
+      assert.ok(m(lo) < m(hi), `${csvF}: low-load boost ${m(lo).toFixed(1)} should be below high-load ${m(hi).toFixed(1)}`);
+    }
+    console.log(`ok boost-physics ${logF}: r(load,boost)=${r.toFixed(2)}, align r=${s.boost_alignment!.confidence.toFixed(2)}`);
+  }
+}
+
 // No CSV → rejected.
 {
   assert.throws(() => buildSession([{ filename: "x.txt", buffer: Buffer.from("junk") }], cfg(false), false), /no RomRaider CSV/);

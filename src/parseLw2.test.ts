@@ -61,13 +61,11 @@ for (const f of logFiles) {
     const { confidence, lag } = alignToCsv(afr, c.afr);
     if (confidence > best.confidence) best = { f: c.f, confidence, lag };
   }
-  // Single-block logs are one coherent time segment -> alignment must be strong. Multi-block logs
-  // concatenate temporally-separated pulls (per-block timestamps live in the post-'sesf' directory,
-  // not yet parsed), so whole-series alignment is only approximate — assert it's still positive.
-  const singleBlock = log.sample_count < 1000; // PSI 1 is one ~828-sample block
-  assert.ok(best.confidence > (singleBlock ? 0.7 : 0.4), `${f}: weak CSV AFR match (${best.confidence.toFixed(2)} vs ${best.f})`);
+  // Windowed alignment (align.ts findWindow) locates the matching slice of the log, so even
+  // multi-block logs — which concatenate temporally-separated pulls — match strongly.
+  assert.ok(best.confidence > 0.9, `${f}: weak CSV AFR match (${best.confidence.toFixed(2)} vs ${best.f})`);
   console.log(
     `ok ${f}: N=${log.sample_count} boost ${bMin.toFixed(1)}..${bMax.toFixed(1)}psi ` +
-    `| AFR~${best.f} r=${best.confidence.toFixed(2)}${singleBlock ? "" : " (multi-block, approx)"}`,
+    `| AFR~${best.f} r=${best.confidence.toFixed(2)}`,
   );
 }
